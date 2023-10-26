@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestCborIndefiniteLength(t *testing.T) {
@@ -89,6 +90,25 @@ func TestCborIndefiniteLength(t *testing.T) {
 			t.Logf("    ....... DECODED: (%T) %#v", vv, vv)
 		}
 		t.FailNow()
+	}
+}
+
+// "If any definite-length text string inside an indefinite-length text string is invalid, the
+// indefinite-length text string is invalid. Note that this implies that the UTF-8 bytes of a single
+// Unicode code point (scalar value) cannot be spread between chunks: a new chunk of a text string
+// can only be started at a code point boundary."
+func TestCborIndefiniteLengthTextStringChunksAreUTF8(t *testing.T) {
+	var handle CborHandle
+	handle.ValidateUnicode = true
+
+	if utf8.Valid([]byte{0xc2}) {
+		t.Fatal("unexpected: stdlib thinks 0xc2 is a valid utf-8 sequence")
+	}
+
+	var out string
+	err := NewDecoderBytes([]byte{0x7f, 0x61, 0xc2, 0x61, 0xa3, 0xff}, &handle).Decode(&out)
+	if err == nil {
+		t.Errorf("expected decode error but decoded to: 0x%x", out)
 	}
 }
 
